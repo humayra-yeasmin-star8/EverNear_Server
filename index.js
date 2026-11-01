@@ -258,7 +258,7 @@ const sampleEvents = [
     title: "Senior Citizens Joy & Music Day",
     description: "Organized a musical performance, board games, and health checkup session for 60 senior citizens.",
     category: "Visiting Elderly People",
-    image: "https://images.unsplash.com/photo-1581579438747-1dc8d1e05dd0?auto=format&fit=crop&w=800&q=80",
+    image:" https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=800&q=80",
     location: "Probin Hitoishi Sangha, Dhaka",
     date: "SEP 05, 2026",
     time: "03:00 PM",
@@ -546,24 +546,3 @@ async function startServer() {
 }
 
 startServer();
-// Add this inside server.js along with your other routes
-app.post("/events", async (req, res) => {
-  try {
-    const eventData = req.body;
-    
-    // Insert the new event into the MongoDB events collection
-    const result = await eventCollection.insertOne({
-      ...eventData,
-      createdAt: new Date(),
-    });
-
-    res.status(201).json({
-      success: true,
-      message: "Event created successfully!",
-      eventId: result.insertedId,
-    });
-  } catch (error) {
-    console.error("Error creating event:", error);
-    res.status(500).json({ success: false, error: "Failed to create event" });
-  }
-});
