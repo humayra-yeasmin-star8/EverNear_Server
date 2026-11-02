@@ -694,6 +694,31 @@ app.delete("/events/joined/:eventId/:userId", async (req, res) => {
     });
   }
 });
+// GET EVENTS CREATED BY A SPECIFIC USER
+app.get("/events/creator/:creatorId", async (req, res) => {
+  try {
+    const { creatorId } = req.params;
+
+    const events = await eventCollection
+      .find({ creatorId })
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    res.status(200).send({
+      success: true,
+      data: events.map((event) => ({
+        ...event,
+        _id: event._id.toString(),
+      })),
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({
+      success: false,
+      message: "Failed to fetch creator events",
+    });
+  }
+});
 
 // START SERVER
 async function startServer() {
