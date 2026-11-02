@@ -538,6 +538,11 @@ app.post("/events/remind", async (req, res) => {
 // GET JOINED EVENTS BY USER ID
 app.get("/events/joined/:userId", async (req, res) => {
   try {
+    const authHeader = req.headers.authorization;
+    console.log(authHeader);
+    if(authHeader !== "user logged in" ){
+return res.status(401).send({msg:'Unauthorized'})
+    }
     const { userId } = req.params;
 
     // 1. Find all registrations for this user
