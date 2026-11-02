@@ -535,6 +535,125 @@ app.post("/events/remind", async (req, res) => {
     });
   }
 });
+// GET JOINED EVENTS BY USER ID
+app.get("/events/joined/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // 1. Find all registrations for this user
+    const registrations = await registrationCollection.find({ userId }).toArray();
+    const eventIds = registrations.map((reg) => new ObjectId(reg.eventId));
+
+    if (eventIds.length === 0) {
+      return res.status(200).send({ success: true, data: [] });
+    }
+
+    // 2. Fetch the corresponding event documents
+    const joinedEvents = await eventCollection
+      .find({ _id: { $in: eventIds } })
+      .toArray();
+
+    res.status(200).send({
+      success: true,
+      data: joinedEvents.map((event) => ({
+        ...event,
+        _id: event._id.toString(),
+      })),
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({
+      success: false,
+      message: "Failed to fetch joined events",
+    });
+  }
+});
+// DELETE EVENT BY ID
+app.delete("/events/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({
+        success: false,
+        message: "Invalid event ID",
+      });
+    }
+
+    const result = await eventCollection.deleteOne({ _id: new ObjectId(id) });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).send({
+        success: false,
+        message: "Event not found",
+      });
+    }
+
+    // Clean up related registrations & reminders
+    await registrationCollection.deleteMany({ eventId: id });
+    await reminderCollection.deleteMany({ eventId: id });
+
+    res.status(200).send({
+      success: true,
+      message: "Event deleted successfully",
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({
+      success: false,
+      message: "Failed to delete event",
+    });
+  }
+});
+// UPDATE EVENT BY ID
+app.put("/events/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({
+        success: false,
+        message: "Invalid event ID",
+      });
+    }
+
+    const { title, description, category, image, location, date, time, status } = req.body;
+
+    const updatedEvent = {
+      title,
+      description,
+      category,
+      image,
+      location,
+      date,
+      time,
+      status,
+    };
+
+    const result = await eventCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: updatedEvent }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).send({
+        success: false,
+        message: "Event not found",
+      });
+    }
+
+    res.status(200).send({
+      success: true,
+      message: "Event updated successfully",
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({
+      success: false,
+      message: "Failed to update event",
+    });
+  }
+});
 
 // START SERVER
 async function startServer() {
