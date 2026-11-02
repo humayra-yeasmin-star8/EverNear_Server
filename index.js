@@ -654,6 +654,46 @@ app.put("/events/:id", async (req, res) => {
     });
   }
 });
+// DELETE JOINED EVENT REGISTRATION
+app.delete("/events/joined/:eventId/:userId", async (req, res) => {
+  try {
+    const { eventId, userId } = req.params;
+
+    if (!ObjectId.isValid(eventId) || !userId) {
+      return res.status(400).send({
+        success: false,
+        message: "Valid event ID and user ID are required.",
+      });
+    }
+
+    
+    const result = await registrationCollection.deleteOne({ eventId, userId });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).send({
+        success: false,
+        message: "Registration not found.",
+      });
+    }
+
+    // 2. Decrement the participant count in the main event document
+    await eventCollection.updateOne(
+      { _id: new ObjectId(eventId) },
+      { $inc: { participantCount: -1 } }
+    );
+
+    res.status(200).send({
+      success: true,
+      message: "Successfully removed from joined events!",
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({
+      success: false,
+      message: "Failed to remove joined event.",
+    });
+  }
+});
 
 // START SERVER
 async function startServer() {
