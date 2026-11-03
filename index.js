@@ -1,3 +1,4 @@
+
 import express from "express";
 import cors from "cors";
 import "dotenv/config";
@@ -16,15 +17,15 @@ let db;
 let eventCollection;
 let registrationCollection;
 let reminderCollection;
+
 const JWKS = createRemoteJWKSet(
-  new URL("http://localhost:3000/api/auth/jwks")
+  new URL(process.env.JWKS_URL)
 );
 
+// VERIFY JWT TOKEN
 const verify = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-
-    console.log("Authorization header exists:", !!authHeader);
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).send({
@@ -35,12 +36,23 @@ const verify = async (req, res, next) => {
 
     const token = authHeader.split(" ")[1];
 
+    if (!token) {
+      return res.status(401).send({
+        success: false,
+        message: "Unauthorized: Invalid token",
+      });
+    }
+
     const { payload } = await jwtVerify(token, JWKS);
 
-    console.log("Verified JWT payload:", payload);
+    if (!payload.sub && !payload.id) {
+      return res.status(401).send({
+        success: false,
+        message: "Invalid token: User ID missing",
+      });
+    }
 
     req.user = payload;
-
     next();
   } catch (error) {
     console.error("JWT verification failed:", error.message);
@@ -51,11 +63,9 @@ const verify = async (req, res, next) => {
     });
   }
 };
-  
 
-// Sample Event Data for Auto-Seeding
+// SAMPLE EVENTS
 const sampleEvents = [
-  // 10 UPCOMING EVENTS
   {
     title: "Dhaka Winter Clothing Drive",
     description: "Collecting and distributing warm clothes, blankets, and jackets for families in need across Mirpur.",
@@ -175,7 +185,7 @@ const sampleEvents = [
   },
   {
     title: "Street Animal Feeding & Care",
-    description: "Distributing food packages and providing basic vaccinations for stray animals in the area.",
+    description: "Distributing food packages and providing basic care for stray animals in the area.",
     category: "Community Volunteering",
     image: "https://images.unsplash.com/photo-1548767797-d8c844163c4c?auto=format&fit=crop&w=800&q=80",
     location: "Lalmatia Block D, Dhaka",
@@ -186,8 +196,6 @@ const sampleEvents = [
     expectedParticipants: 40,
     createdAt: new Date(),
   },
-
-  // 5 COMPLETED EVENTS ("Memories We've Made Together")
   {
     title: "Autumn Warm Meal Distribution",
     description: "Over 800 freshly cooked hot meal packages served to homeless families across Dhaka railway hub.",
@@ -214,7 +222,7 @@ const sampleEvents = [
       "https://images.unsplash.com/photo-1593113598332-cd288d649433?auto=format&fit=crop&w=800&q=80",
       "https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?auto=format&fit=crop&w=800&q=80"
     ],
-    createdAt: new Date()
+    createdAt: new Date(),
   },
   {
     title: "Clean Buriganga Riverbank Drive",
@@ -228,7 +236,7 @@ const sampleEvents = [
     participantCount: 154,
     aboutText: "A community campaign aimed at restoring cleanliness around Sadarghat terminal riverbanks.",
     storyHeading: "Restoring the Riverbank Step by Step",
-    storyText: "Equipped with gloves, biodegradable bags, and heavy-duty gear, volunteers cleaned a 2 km stretch of riverbank.",
+    storyText: "Volunteers equipped with gloves and biodegradable bags cleaned a 2 km stretch of riverbank.",
     samplePeople: [
       { id: "1", name: "Rahim Chowdhury", role: "Team Captain", avatar: "https://i.pravatar.cc/150?img=13", reflection: "We collected over 1200 kg of non-biodegradable plastics in just 4 hours!" }
     ],
@@ -239,7 +247,7 @@ const sampleEvents = [
     gallery: [
       "https://images.unsplash.com/photo-1530587191325-3db32d826c18?auto=format&fit=crop&w=800&q=80"
     ],
-    createdAt: new Date()
+    createdAt: new Date(),
   },
   {
     title: "School Supplies Drive for Kids",
@@ -264,7 +272,7 @@ const sampleEvents = [
     gallery: [
       "https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=800&q=80"
     ],
-    createdAt: new Date()
+    createdAt: new Date(),
   },
   {
     title: "Monsoon Tree Plantation Camp",
@@ -289,13 +297,13 @@ const sampleEvents = [
     gallery: [
       "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=800&q=80"
     ],
-    createdAt: new Date()
+    createdAt: new Date(),
   },
   {
     title: "Senior Citizens Joy & Music Day",
     description: "Organized a musical performance, board games, and health checkup session for 60 senior citizens.",
     category: "Visiting Elderly People",
-    image:" https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=800&q=80",
+    image: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=800&q=80",
     location: "Probin Hitoishi Sangha, Dhaka",
     date: "SEP 05, 2026",
     time: "03:00 PM",
@@ -303,7 +311,7 @@ const sampleEvents = [
     participantCount: 35,
     aboutText: "A joyful day dedicated to our elders to show care, listen to stories, and share music.",
     storyHeading: "Laughter, Music, and Shared Memories",
-    storyText: "Local musicians performed old classics while doctors conducted free blood pressure and diabetes screenings.",
+    storyText: "Local musicians performed old classics while volunteers helped organize activities and health screenings.",
     samplePeople: [
       { id: "1", name: "Sadiya Islam", role: "Event Lead", avatar: "https://i.pravatar.cc/150?img=25", reflection: "The warmth and gratitude of the elders filled all our hearts." }
     ],
@@ -314,56 +322,62 @@ const sampleEvents = [
     gallery: [
       "https://images.unsplash.com/photo-1581579438747-1dc8d1e05dd0?auto=format&fit=crop&w=800&q=80"
     ],
-    createdAt: new Date()
-  }
+    createdAt: new Date(),
+  },
 ];
 
+// CONNECT TO MONGODB
 async function connectToMongoDB() {
   try {
     await client.connect();
+
     db = client.db("event-db");
 
     eventCollection = db.collection("events");
     registrationCollection = db.collection("registrations");
     reminderCollection = db.collection("reminders");
 
-  
-  const eventCount = await eventCollection.countDocuments();
+    const eventCount = await eventCollection.countDocuments();
 
-if (eventCount === 0) {
-  await eventCollection.insertMany(sampleEvents);
-  console.log("Sample events inserted!");
-}
+    if (eventCount === 0) {
+      await eventCollection.insertMany(sampleEvents);
+      console.log("Sample events inserted!");
+    }
 
-    // AUTO-SEED: Insert clean sample events without duplicates
-    await eventCollection.insertMany(sampleEvents);
-    console.log("Successfully auto-seeded clean events into MongoDB!");
+    // Prevent duplicate registrations and reminders.
+    await registrationCollection.createIndex(
+      { eventId: 1, userId: 1 },
+      { unique: true }
+    );
+
+    await reminderCollection.createIndex(
+      { eventId: 1, userId: 1 },
+      { unique: true }
+    );
 
     console.log("Successfully connected to MongoDB!");
   } catch (error) {
     console.error("MongoDB connection failed:", error);
-    throw error;
+    process.exit(1);
   }
 }
 
 // HOME ROUTE
 app.get("/", (req, res) => {
-  res.send({ message: "EverNear server is running!" });
+  res.send({
+    success: true,
+    message: "EverNear server is running!",
+  });
 });
 
-// GET ALL EVENTS (Case-insensitive status filter query)
-app.get("/events",verify, async (req, res) => {
-  
+// GET EVENTS CREATED BY LOGGED-IN USER
+app.get("/events/creator", verify, async (req, res) => {
   try {
-    const { status } = req.query;
-
-    const query = status
-      ? { status: { $regex: new RegExp(`^${status}$`, "i") } }
-      : {};
+    const creatorId = req.user.sub || req.user.id;
 
     const events = await eventCollection
-      .find(query)
-      .sort({ date: 1 })
+      .find({ creatorId })
+      .sort({ createdAt: -1 })
       .toArray();
 
     res.status(200).send({
@@ -374,23 +388,155 @@ app.get("/events",verify, async (req, res) => {
       })),
     });
   } catch (error) {
-    console.error(error);
+    console.error("Fetch creator events error:", error);
+
     res.status(500).send({
       success: false,
-      message: "Failed to fetch events",
+      message: "Failed to fetch creator events.",
+    });
+  }
+});
+// GET ALL EVENTS OR FILTER BY STATUS
+app.get("/events", async (req, res) => {
+  try {
+    const { status } = req.query;
+
+    const query = {};
+
+    if (status) {
+      if (!["upcoming", "completed"].includes(String(status).toLowerCase())) {
+        return res.status(400).send({
+          success: false,
+          message: "Invalid event status.",
+        });
+      }
+
+      query.status = {
+        $regex: `^${String(status)}$`,
+        $options: "i",
+      };
+    }
+
+    const events = await eventCollection
+      .find(query)
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    res.status(200).send({
+      success: true,
+      data: events.map((event) => ({
+        ...event,
+        _id: event._id.toString(),
+      })),
+    });
+  } catch (error) {
+    console.error("Fetch events error:", error);
+
+    res.status(500).send({
+      success: false,
+      message: "Failed to fetch events.",
+    });
+  }
+});
+
+// GET JOINED EVENTS FOR LOGGED-IN USER (must be defined before /events/:id,
+// otherwise Express matches id="joined" first)
+app.get("/events/joined", verify, async (req, res) => {
+  try {
+    const userId = req.user.sub || req.user.id;
+
+    const registrations = await registrationCollection
+      .find({ userId })
+      .toArray();
+
+    const eventIds = registrations
+      .map((registration) => registration.eventId)
+      .filter((id) => ObjectId.isValid(id))
+      .map((id) => new ObjectId(id));
+
+    if (eventIds.length === 0) {
+      return res.status(200).send({
+        success: true,
+        data: [],
+      });
+    }
+
+    const joinedEvents = await eventCollection
+      .find({ _id: { $in: eventIds } })
+      .toArray();
+
+    res.status(200).send({
+      success: true,
+      data: joinedEvents.map((event) => ({
+        ...event,
+        _id: event._id.toString(),
+      })),
+    });
+  } catch (error) {
+    console.error("Fetch joined events error:", error);
+
+    res.status(500).send({
+      success: false,
+      message: "Failed to fetch joined events.",
+    });
+  }
+});
+
+// GET EVENTS THE LOGGED-IN USER IS INTERESTED IN
+// "Interested" = events the user joined or saved a reminder for.
+app.get("/events/interested", verify, async (req, res) => {
+  try {
+    const userId = req.user.sub || req.user.id;
+
+    const [registrations, reminders] = await Promise.all([
+      registrationCollection.find({ userId }).toArray(),
+      reminderCollection.find({ userId }).toArray(),
+    ]);
+
+    const eventIdSet = new Set(
+      [...registrations, ...reminders]
+        .map((entry) => entry.eventId)
+        .filter((id) => ObjectId.isValid(id))
+    );
+
+    if (eventIdSet.size === 0) {
+      return res.status(200).send({
+        success: true,
+        data: [],
+      });
+    }
+
+    const interestedEvents = await eventCollection
+      .find({ _id: { $in: [...eventIdSet].map((id) => new ObjectId(id)) } })
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    res.status(200).send({
+      success: true,
+      data: interestedEvents.map((event) => ({
+        ...event,
+        _id: event._id.toString(),
+      })),
+    });
+  } catch (error) {
+    console.error("Fetch interested events error:", error);
+
+    res.status(500).send({
+      success: false,
+      message: "Failed to fetch interested events.",
     });
   }
 });
 
 // GET SINGLE EVENT
-app.get("/events/:id", verify, async (req, res) => {
+app.get("/events/:id", async (req, res) => {
   try {
     const { id } = req.params;
 
     if (!ObjectId.isValid(id)) {
       return res.status(400).send({
         success: false,
-        message: "Invalid event ID",
+        message: "Invalid event ID.",
       });
     }
 
@@ -401,7 +547,7 @@ app.get("/events/:id", verify, async (req, res) => {
     if (!event) {
       return res.status(404).send({
         success: false,
-        message: "Event not found",
+        message: "Event not found.",
       });
     }
 
@@ -413,16 +559,17 @@ app.get("/events/:id", verify, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error(error);
+    console.error("Fetch single event error:", error);
+
     res.status(500).send({
       success: false,
-      message: "Failed to fetch event",
+      message: "Failed to fetch event.",
     });
   }
 });
 
 // CREATE EVENT
-app.post("/events", async (req, res) => {
+app.post("/events", verify, async (req, res) => {
   try {
     const {
       title,
@@ -432,18 +579,16 @@ app.post("/events", async (req, res) => {
       location,
       date,
       time,
-      status,
     } = req.body;
 
     if (
-      !title ||
-      !description ||
-      !category ||
-      !image ||
-      !location ||
-      !date ||
-      !time ||
-      !["upcoming", "completed"].includes(status)
+      !title?.trim() ||
+      !description?.trim() ||
+      !category?.trim() ||
+      !image?.trim() ||
+      !location?.trim() ||
+      !date?.trim() ||
+      !time?.trim()
     ) {
       return res.status(400).send({
         success: false,
@@ -452,8 +597,16 @@ app.post("/events", async (req, res) => {
     }
 
     const event = {
-      ...req.body,
+      title: title.trim(),
+      description: description.trim(),
+      category: category.trim(),
+      image: image.trim(),
+      location: location.trim(),
+      date: date.trim(),
+      time: time.trim(),
+      status: "upcoming",
       participantCount: 0,
+      creatorId: req.user.sub || req.user.id,
       createdAt: new Date(),
     };
 
@@ -461,46 +614,53 @@ app.post("/events", async (req, res) => {
 
     res.status(201).send({
       success: true,
-      message: "Event created successfully",
-      insertedId: result.insertedId.toString(),
+      message: "Event created successfully!",
+      data: {
+        ...event,
+        _id: result.insertedId.toString(),
+      },
     });
   } catch (error) {
-    console.error(error);
+    console.error("Create event error:", error);
+
     res.status(500).send({
       success: false,
-      message: "Failed to create event",
+      message: "Failed to create event.",
     });
   }
 });
 
 // JOIN EVENT
-app.post("/events/join", async (req, res) => {
+app.post("/events/join", verify, async (req, res) => {
   try {
-    const { eventId, userId, userEmail, userName } = req.body;
+    const { eventId } = req.body;
 
-    if (!ObjectId.isValid(eventId) || !userId) {
+    if (!ObjectId.isValid(eventId)) {
       return res.status(400).send({
         success: false,
-        message: "Valid event and user information are required.",
+        message: "Valid event ID is required.",
       });
     }
 
     const event = await eventCollection.findOne({
       _id: new ObjectId(eventId),
+      status: "upcoming",
     });
 
     if (!event) {
       return res.status(404).send({
         success: false,
-        message: "Event not found.",
+        message: "Upcoming event not found.",
       });
     }
+
+    const userId = req.user.sub || req.user.id;
 
     await registrationCollection.insertOne({
       eventId,
       userId,
-      userEmail,
-      userName,
+      userEmail: req.user.email || "",
+      userName: req.user.name || "",
       createdAt: new Date(),
     });
 
@@ -521,7 +681,8 @@ app.post("/events/join", async (req, res) => {
       });
     }
 
-    console.error(error);
+    console.error("Join event error:", error);
+
     res.status(500).send({
       success: false,
       message: "Failed to join event.",
@@ -530,27 +691,30 @@ app.post("/events/join", async (req, res) => {
 });
 
 // SAVE EVENT REMINDER
-app.post("/events/remind", async (req, res) => {
+app.post("/events/remind", verify, async (req, res) => {
   try {
-    const { eventId, userId } = req.body;
+    const { eventId } = req.body;
 
-    if (!ObjectId.isValid(eventId) || !userId) {
+    if (!ObjectId.isValid(eventId)) {
       return res.status(400).send({
         success: false,
-        message: "Valid event and user information are required.",
+        message: "Valid event ID is required.",
       });
     }
 
     const event = await eventCollection.findOne({
       _id: new ObjectId(eventId),
+      status: "upcoming",
     });
 
     if (!event) {
       return res.status(404).send({
         success: false,
-        message: "Event not found.",
+        message: "Upcoming event not found.",
       });
     }
+
+    const userId = req.user.sub || req.user.id;
 
     await reminderCollection.insertOne({
       eventId,
@@ -570,99 +734,73 @@ app.post("/events/remind", async (req, res) => {
       });
     }
 
-    console.error(error);
+    console.error("Save reminder error:", error);
+
     res.status(500).send({
       success: false,
       message: "Failed to save reminder.",
     });
   }
 });
-// GET JOINED EVENTS BY USER ID
-app.get("/events/joined/:userId", async (req, res) => {
-  try {
-    
-    const { userId } = req.params;
 
-    // 1. Find all registrations for this user
-    const registrations = await registrationCollection.find({ userId }).toArray();
-    const eventIds = registrations.map((reg) => new ObjectId(reg.eventId));
-
-    if (eventIds.length === 0) {
-      return res.status(200).send({ success: true, data: [] });
-    }
-
-    // 2. Fetch the corresponding event documents
-    const joinedEvents = await eventCollection
-      .find({ _id: { $in: eventIds } })
-      .toArray();
-
-    res.status(200).send({
-      success: true,
-      data: joinedEvents.map((event) => ({
-        ...event,
-        _id: event._id.toString(),
-      })),
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).send({
-      success: false,
-      message: "Failed to fetch joined events",
-    });
-  }
-});
-// DELETE EVENT BY ID
-app.delete("/events/:id", async (req, res) => {
+// DELETE EVENT
+app.delete("/events/:id", verify, async (req, res) => {
   try {
     const { id } = req.params;
 
     if (!ObjectId.isValid(id)) {
       return res.status(400).send({
         success: false,
-        message: "Invalid event ID",
+        message: "Invalid event ID.",
       });
     }
 
-    const result = await eventCollection.deleteOne({ _id: new ObjectId(id) });
+    const userId = req.user.sub || req.user.id;
+
+    const result = await eventCollection.deleteOne({
+      _id: new ObjectId(id),
+      creatorId: userId,
+    });
 
     if (result.deletedCount === 0) {
       return res.status(404).send({
         success: false,
-        message: "Event not found",
+        message: "Event not found or you do not own this event.",
       });
     }
 
-    // Clean up related registrations & reminders
     await registrationCollection.deleteMany({ eventId: id });
     await reminderCollection.deleteMany({ eventId: id });
 
     res.status(200).send({
       success: true,
-      message: "Event deleted successfully",
+      message: "Event deleted successfully!",
     });
   } catch (error) {
-    console.error(error);
+    console.error("Delete event error:", error);
+
     res.status(500).send({
       success: false,
-      message: "Failed to delete event",
+      message: "Failed to delete event.",
     });
   }
 });
-// UPDATE EVENT BY ID
-app.put("/events/:id", async (req, res) => {
+
+// UPDATE EVENT
+app.put("/events/:id", verify, async (req, res) => {
   try {
     const { id } = req.params;
 
     if (!ObjectId.isValid(id)) {
       return res.status(400).send({
         success: false,
-        message: "Invalid event ID",
+        message: "Invalid event ID.",
       });
     }
 
-    const { title, description, category, image, location, date, time, status } = req.body;
+    const userId = req.user.sub || req.user.id;
 
-    const updatedEvent = {
+    const {
       title,
       description,
       category,
@@ -670,47 +808,84 @@ app.put("/events/:id", async (req, res) => {
       location,
       date,
       time,
-      status,
+    } = req.body;
+
+    if (
+      !title?.trim() ||
+      !description?.trim() ||
+      !category?.trim() ||
+      !image?.trim() ||
+      !location?.trim() ||
+      !date?.trim() ||
+      !time?.trim()
+    ) {
+      return res.status(400).send({
+        success: false,
+        message: "Please provide all required event information.",
+      });
+    }
+
+    const updatedEvent = {
+      title: title.trim(),
+      description: description.trim(),
+      category: category.trim(),
+      image: image.trim(),
+      location: location.trim(),
+      date: date.trim(),
+      time: time.trim(),
+      status: "upcoming",
+      updatedAt: new Date(),
     };
 
     const result = await eventCollection.updateOne(
-      { _id: new ObjectId(id) },
-      { $set: updatedEvent }
+      {
+        _id: new ObjectId(id),
+        creatorId: userId,
+      },
+      {
+        $set: updatedEvent,
+      }
     );
 
     if (result.matchedCount === 0) {
       return res.status(404).send({
         success: false,
-        message: "Event not found",
+        message: "Event not found or you do not own this event.",
       });
     }
 
     res.status(200).send({
       success: true,
-      message: "Event updated successfully",
+      message: "Event updated successfully!",
     });
   } catch (error) {
-    console.error(error);
+    console.error("Update event error:", error);
+
     res.status(500).send({
       success: false,
-      message: "Failed to update event",
+      message: "Failed to update event.",
     });
   }
 });
-// DELETE JOINED EVENT REGISTRATION
-app.delete("/events/joined/:eventId/:userId", async (req, res) => {
-  try {
-    const { eventId, userId } = req.params;
 
-    if (!ObjectId.isValid(eventId) || !userId) {
+// DELETE JOINED EVENT REGISTRATION
+app.delete("/events/joined/:eventId", verify, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+
+    if (!ObjectId.isValid(eventId)) {
       return res.status(400).send({
         success: false,
-        message: "Valid event ID and user ID are required.",
+        message: "Invalid event ID.",
       });
     }
 
-    
-    const result = await registrationCollection.deleteOne({ eventId, userId });
+    const userId = req.user.sub || req.user.id;
+
+    const result = await registrationCollection.deleteOne({
+      eventId,
+      userId,
+    });
 
     if (result.deletedCount === 0) {
       return res.status(404).send({
@@ -719,7 +894,6 @@ app.delete("/events/joined/:eventId/:userId", async (req, res) => {
       });
     }
 
-    // 2. Decrement the participant count in the main event document
     await eventCollection.updateOne(
       { _id: new ObjectId(eventId) },
       { $inc: { participantCount: -1 } }
@@ -730,38 +904,15 @@ app.delete("/events/joined/:eventId/:userId", async (req, res) => {
       message: "Successfully removed from joined events!",
     });
   } catch (error) {
-    console.error(error);
+    console.error("Leave event error:", error);
+
     res.status(500).send({
       success: false,
       message: "Failed to remove joined event.",
     });
   }
 });
-// GET EVENTS CREATED BY A SPECIFIC USER
-app.get("/events/creator/:creatorId", async (req, res) => {
-  try {
-    const { creatorId } = req.params;
 
-    const events = await eventCollection
-      .find({ creatorId })
-      .sort({ createdAt: -1 })
-      .toArray();
-
-    res.status(200).send({
-      success: true,
-      data: events.map((event) => ({
-        ...event,
-        _id: event._id.toString(),
-      })),
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).send({
-      success: false,
-      message: "Failed to fetch creator events",
-    });
-  }
-});
 
 // START SERVER
 async function startServer() {
@@ -773,4 +924,3 @@ async function startServer() {
 }
 
 startServer();
-
