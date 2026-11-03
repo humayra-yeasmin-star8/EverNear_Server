@@ -15,6 +15,14 @@ let db;
 let eventCollection;
 let registrationCollection;
 let reminderCollection;
+const verify=(req,res,next)=>{
+  const authHeader = req.headers.authorization;
+  console.log(authHeader);
+  if(authHeader !== "user logged in" ){
+    return res.status(401).send({msg:'Unauthorized'})
+  }
+  next();
+};
 
 // Sample Event Data for Auto-Seeding
 const sampleEvents = [
@@ -311,7 +319,8 @@ app.get("/", (req, res) => {
 });
 
 // GET ALL EVENTS (Case-insensitive status filter query)
-app.get("/events", async (req, res) => {
+app.get("/events",verify, async (req, res) => {
+  
   try {
     const { status } = req.query;
 
@@ -341,7 +350,7 @@ app.get("/events", async (req, res) => {
 });
 
 // GET SINGLE EVENT
-app.get("/events/:id", async (req, res) => {
+app.get("/events/:id", verify, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -538,11 +547,7 @@ app.post("/events/remind", async (req, res) => {
 // GET JOINED EVENTS BY USER ID
 app.get("/events/joined/:userId", async (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
-    console.log(authHeader);
-    if(authHeader !== "user logged in" ){
-return res.status(401).send({msg:'Unauthorized'})
-    }
+    
     const { userId } = req.params;
 
     // 1. Find all registrations for this user
