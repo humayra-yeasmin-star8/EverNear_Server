@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import "dotenv/config";
 import { MongoClient, ObjectId } from "mongodb";
+import { createRemoteJWKSet, jwtVerify } from "jose";
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -15,14 +16,42 @@ let db;
 let eventCollection;
 let registrationCollection;
 let reminderCollection;
-const verify=(req,res,next)=>{
-  const authHeader = req.headers.authorization;
-  console.log(authHeader);
-  if(authHeader !== "user logged in" ){
-    return res.status(401).send({msg:'Unauthorized'})
+const JWKS = createRemoteJWKSet(
+  new URL("http://localhost:3000/api/auth/jwks")
+);
+
+const verify = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    console.log("Authorization header exists:", !!authHeader);
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).send({
+        success: false,
+        message: "Unauthorized: Missing token",
+      });
+    }
+
+    const token = authHeader.split(" ")[1];
+
+    const { payload } = await jwtVerify(token, JWKS);
+
+    console.log("Verified JWT payload:", payload);
+
+    req.user = payload;
+
+    next();
+  } catch (error) {
+    console.error("JWT verification failed:", error.message);
+
+    return res.status(401).send({
+      success: false,
+      message: "Invalid or expired token",
+    });
   }
-  next();
 };
+  
 
 // Sample Event Data for Auto-Seeding
 const sampleEvents = [
@@ -298,9 +327,13 @@ async function connectToMongoDB() {
     registrationCollection = db.collection("registrations");
     reminderCollection = db.collection("reminders");
 
-    // CLEAR & RESET: Automatically drop or delete all old events on server restart
-    await eventCollection.deleteMany({});
-    console.log("Cleared old events from database.");
+  
+  const eventCount = await eventCollection.countDocuments();
+
+if (eventCount === 0) {
+  await eventCollection.insertMany(sampleEvents);
+  console.log("Sample events inserted!");
+}
 
     // AUTO-SEED: Insert clean sample events without duplicates
     await eventCollection.insertMany(sampleEvents);
@@ -740,3 +773,4 @@ async function startServer() {
 }
 
 startServer();
+
