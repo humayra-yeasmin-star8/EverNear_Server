@@ -19,7 +19,7 @@ let registrationCollection;
 let reminderCollection;
 
 const JWKS = createRemoteJWKSet(
-  new URL(process.env.JWKS_URL)
+  new URL(`${process.env.JWKS_URL}/api/auth/jwks`)
 );
 
 // VERIFY JWT TOKEN
