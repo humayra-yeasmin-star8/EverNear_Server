@@ -11,6 +11,35 @@ const PORT = process.env.PORT || 8000;
 app.use(cors());
 app.use(express.json());
 
+function isFutureEventDate(dateValue) {
+  if (typeof dateValue !== "string") {
+    return false;
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+    return false;
+  }
+
+  const parsedDate = new Date(`${dateValue}T00:00:00.000Z`);
+
+  if (
+    Number.isNaN(parsedDate.getTime()) ||
+    parsedDate.toISOString().slice(0, 10) !== dateValue
+  ) {
+    return false;
+  }
+
+  const todayInDhaka = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Dhaka",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+
+  return dateValue > todayInDhaka;
+}
+
+
 const client = new MongoClient(process.env.MONGODB_URI);
 
 let db;
@@ -329,7 +358,7 @@ const sampleEvents = [
 // CONNECT TO MONGODB
 async function connectToMongoDB() {
   try {
-    await client.connect();
+    //await client.connect();
 
     db = client.db("event-db");
 
@@ -595,6 +624,12 @@ app.post("/events", verify, async (req, res) => {
         message: "Please provide all required event information.",
       });
     }
+    if (!isFutureEventDate(date)) {
+  return res.status(400).send({
+    success: false,
+    message: "Past dates and today's date are not allowed. Please select a future date.",
+  });
+}
 
     const event = {
       title: title.trim(),
